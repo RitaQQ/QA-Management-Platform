@@ -233,7 +233,7 @@ class TestCase(Base):
         ForeignKey('organizations.id', ondelete='CASCADE'),
         nullable=False,
     )
-    tc_id = Column(String(20), nullable=False)  # TC00001 format
+    tc_id = Column(String(50), nullable=False)  # User-customizable, defaults to TC00001 format
     title = Column(String(500), nullable=False)
     user_role = Column(Text)
     feature_description = Column(Text)

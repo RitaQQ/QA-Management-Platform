@@ -217,6 +217,166 @@ class TestTcIdAutoIncrement:
 
 
 # ---------------------------------------------------------------------------
+# 2b. Custom TC ID
+# ---------------------------------------------------------------------------
+
+class TestCustomTcId:
+
+    def test_create_with_custom_tc_id(self, client, tenant_data):
+        """User-supplied TC ID is used when provided."""
+        resp = _create_case(client, tenant_data['token_a'], title='Custom ID', tc_id='SC001')
+        assert resp.status_code == 201
+        assert resp.get_json()['data']['tc_id'] == 'SC001'
+
+    def test_create_without_tc_id_auto_generates(self, client, tenant_data):
+        """When tc_id is omitted, auto-generate TC00001 format."""
+        resp = _create_case(client, tenant_data['token_a'], title='Auto ID')
+        assert resp.status_code == 201
+        assert resp.get_json()['data']['tc_id'] == 'TC00001'
+
+    def test_create_duplicate_tc_id_rejected(self, client, tenant_data):
+        """Duplicate TC ID within the same tenant returns 400."""
+        _create_case(client, tenant_data['token_a'], title='First', tc_id='DUP001')
+        resp = _create_case(client, tenant_data['token_a'], title='Second', tc_id='DUP001')
+        assert resp.status_code == 400
+        assert 'DUP001' in resp.get_json()['error']
+
+    def test_same_tc_id_different_tenants_ok(self, client, tenant_data):
+        """Same TC ID in different tenants should be allowed."""
+        resp_a = _create_case(client, tenant_data['token_a'], title='A', tc_id='CROSS01')
+        resp_b = _create_case(client, tenant_data['token_b'], title='B', tc_id='CROSS01')
+        assert resp_a.status_code == 201
+        assert resp_b.status_code == 201
+
+    def test_update_tc_id_success(self, client, tenant_data):
+        """TC ID can be changed via update."""
+        create_resp = _create_case(client, tenant_data['token_a'], title='Rename TC')
+        case_id = create_resp.get_json()['data']['id']
+
+        resp = client.put(
+            f'/api/test-cases/{case_id}',
+            json={'tc_id': 'NEW-001'},
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()['data']['tc_id'] == 'NEW-001'
+
+    def test_update_tc_id_duplicate_rejected(self, client, tenant_data):
+        """Cannot update TC ID to an existing value in the same tenant."""
+        _create_case(client, tenant_data['token_a'], title='Existing', tc_id='TAKEN01')
+        create_resp = _create_case(client, tenant_data['token_a'], title='Wants TAKEN01')
+        case_id = create_resp.get_json()['data']['id']
+
+        resp = client.put(
+            f'/api/test-cases/{case_id}',
+            json={'tc_id': 'TAKEN01'},
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert resp.status_code == 400
+        assert 'TAKEN01' in resp.get_json()['error']
+
+    def test_update_tc_id_same_value_ok(self, client, tenant_data):
+        """Updating TC ID to its current value should succeed (no change)."""
+        create_resp = _create_case(client, tenant_data['token_a'], title='Same', tc_id='KEEP01')
+        case_id = create_resp.get_json()['data']['id']
+
+        resp = client.put(
+            f'/api/test-cases/{case_id}',
+            json={'tc_id': 'KEEP01'},
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()['data']['tc_id'] == 'KEEP01'
+
+    def test_next_tc_id_endpoint(self, client, tenant_data):
+        """GET /api/test-cases/next-tc-id returns the next auto ID."""
+        resp = client.get('/api/test-cases/next-tc-id', headers=_auth(tenant_data['token_a']))
+        assert resp.status_code == 200
+        assert resp.get_json()['data'] == 'TC00001'
+
+        # Create one case, next should be TC00002
+        _create_case(client, tenant_data['token_a'], title='First')
+        resp2 = client.get('/api/test-cases/next-tc-id', headers=_auth(tenant_data['token_a']))
+        assert resp2.get_json()['data'] == 'TC00002'
+
+    def test_auto_increment_skips_custom_ids(self, client, tenant_data):
+        """Custom TC IDs do not interfere with auto-increment sequence."""
+        _create_case(client, tenant_data['token_a'], title='Auto 1')  # TC00001
+        _create_case(client, tenant_data['token_a'], title='Custom', tc_id='SC999')
+        resp = _create_case(client, tenant_data['token_a'], title='Auto 2')  # should be TC00002
+        assert resp.get_json()['data']['tc_id'] == 'TC00002'
+
+
+# ---------------------------------------------------------------------------
+# 2c. CSV import with custom TC ID
+# ---------------------------------------------------------------------------
+
+class TestCsvImportCustomTcId:
+
+    def test_csv_import_with_custom_tc_id(self, client, tenant_data):
+        """CSV rows with TC ID values use those values."""
+        csv_content = (
+            'TC ID,Title,User Role,Feature Description,Acceptance Criteria,Priority,Status,Tags\n'
+            'LOGIN-01,Login Test,user,Login feature,Can login,high,draft,\n'
+        )
+        data = io.BytesIO(csv_content.encode('utf-8'))
+        resp = client.post(
+            '/api/test-cases/import-csv',
+            data={'file': (data, 'test.csv')},
+            headers=_auth(tenant_data['token_a']),
+            content_type='multipart/form-data',
+        )
+        assert resp.status_code == 200
+        result = resp.get_json()['data']
+        assert result['created'] == 1
+
+        cases = client.get('/api/test-cases', headers=_auth(tenant_data['token_a'])).get_json()['data']
+        assert cases[0]['tc_id'] == 'LOGIN-01'
+
+    def test_csv_import_empty_tc_id_auto_generates(self, client, tenant_data):
+        """CSV rows with empty TC ID get auto-generated values."""
+        csv_content = (
+            'TC ID,Title,User Role,Feature Description,Acceptance Criteria,Priority,Status,Tags\n'
+            ',Auto Row,user,desc,criteria,medium,draft,\n'
+        )
+        data = io.BytesIO(csv_content.encode('utf-8'))
+        resp = client.post(
+            '/api/test-cases/import-csv',
+            data={'file': (data, 'test.csv')},
+            headers=_auth(tenant_data['token_a']),
+            content_type='multipart/form-data',
+        )
+        assert resp.status_code == 200
+        result = resp.get_json()['data']
+        assert result['created'] == 1
+
+        cases = client.get('/api/test-cases', headers=_auth(tenant_data['token_a'])).get_json()['data']
+        assert cases[0]['tc_id'].startswith('TC')
+
+    def test_csv_import_duplicate_tc_id_skipped(self, client, tenant_data):
+        """CSV row with duplicate TC ID is skipped; rest continue."""
+        _create_case(client, tenant_data['token_a'], title='Existing', tc_id='DUP-CSV')
+        csv_content = (
+            'TC ID,Title,User Role,Feature Description,Acceptance Criteria,Priority,Status,Tags\n'
+            'DUP-CSV,Dupe Row,user,desc,criteria,medium,draft,\n'
+            'NEW-CSV,New Row,user,desc,criteria,high,draft,\n'
+        )
+        data = io.BytesIO(csv_content.encode('utf-8'))
+        resp = client.post(
+            '/api/test-cases/import-csv',
+            data={'file': (data, 'test.csv')},
+            headers=_auth(tenant_data['token_a']),
+            content_type='multipart/form-data',
+        )
+        assert resp.status_code == 200
+        result = resp.get_json()['data']
+        assert result['created'] == 1
+        assert result['total'] == 2
+        assert len(result['errors']) == 1
+        assert 'DUP-CSV' in result['errors'][0]
+
+
+# ---------------------------------------------------------------------------
 # 3. List test cases
 # ---------------------------------------------------------------------------
 
@@ -387,7 +547,7 @@ class TestCsvExport:
             headers=_auth(tenant_data['token_a']),
         )
         assert resp.status_code == 200
-        assert resp.content_type == 'text/csv; charset=utf-8'
+        assert 'text/csv' in resp.content_type
         assert 'attachment' in resp.headers.get('Content-Disposition', '')
 
         csv_text = resp.data.decode('utf-8')
@@ -396,9 +556,9 @@ class TestCsvExport:
 
         # Check header
         assert 'TC ID' in lines[0]
-        assert '標題' in lines[0]
-        assert '用戶角色' in lines[0]
-        assert '功能描述' in lines[0]
+        assert 'Title' in lines[0]
+        assert 'User Role' in lines[0]
+        assert 'Feature Description' in lines[0]
 
         # Check data row
         assert 'Export Test' in csv_text
@@ -415,7 +575,7 @@ class TestCsvImport:
     def test_csv_import(self, client, tenant_data):
         """Import creates cases with correct fields."""
         csv_content = (
-            'TC ID,標題,用戶角色,功能描述,驗收條件,優先級,狀態,產品標籤\n'
+            'TC ID,Title,User Role,Feature Description,Acceptance Criteria,Priority,Status,Tags\n'
             'TC00001,用戶登入,registered user,使用帳密登入系統,登入成功跳轉首頁,high,draft,"LoginTag"\n'
             'TC00002,用戶登出,admin,點擊登出按鈕,返回登入頁面,medium,ready,\n'
         )

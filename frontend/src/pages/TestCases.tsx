@@ -29,6 +29,7 @@ const PRIORITIES = ['low', 'medium', 'high'];
 const STATUSES = ['draft', 'ready', 'in_progress', 'completed', 'blocked'];
 
 interface CaseForm {
+  tc_id: string;
   title: string;
   user_role: string;
   feature_description: string;
@@ -42,7 +43,7 @@ interface CaseForm {
 }
 
 const emptyForm: CaseForm = {
-  title: '', user_role: '', feature_description: '', acceptance_criteria: '',
+  tc_id: '', title: '', user_role: '', feature_description: '', acceptance_criteria: '',
   test_notes: '', priority: 'medium', status: 'draft', estimated_hours: 0, actual_hours: 0, tag_ids: [],
 };
 
@@ -129,11 +130,21 @@ export default function TestCases() {
   });
 
   // Handlers
-  const openCreate = () => { setEditingId(null); setForm(emptyForm); setFormOpen(true); };
+  const openCreate = async () => {
+    setEditingId(null);
+    let nextTcId = '';
+    try {
+      const res = await api.get<ApiResponse<string>>('/test-cases/next-tc-id');
+      nextTcId = res.data.data;
+    } catch { /* keep empty — backend will auto-generate */ }
+    setForm({ ...emptyForm, tc_id: nextTcId });
+    setFormOpen(true);
+  };
 
   const openEdit = (tc: TestCase) => {
     setEditingId(tc.id);
     setForm({
+      tc_id: tc.tc_id,
       title: tc.title,
       user_role: tc.user_role ?? '',
       feature_description: tc.feature_description ?? '',
@@ -151,6 +162,7 @@ export default function TestCases() {
   const handleSubmit = () => {
     const payload = {
       ...form,
+      tc_id: form.tc_id.trim() || undefined,
       user_role: form.user_role.trim() || null,
       feature_description: form.feature_description.trim() || null,
       acceptance_criteria: form.acceptance_criteria.trim() || null,
@@ -329,6 +341,11 @@ export default function TestCases() {
             <DialogTitle className="text-[#C9D1D9]">{editingId ? 'Edit Test Case' : 'Add Test Case'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <Label className="text-[#C9D1D9]">TC ID</Label>
+              <Input value={form.tc_id} onChange={e => setForm(f => ({ ...f, tc_id: e.target.value }))} className="bg-[#0D1117] border-[#30363D] text-[#C9D1D9] mt-1 font-mono" placeholder="e.g. TC00001, SC001, LOGIN-01" />
+              <p className="text-xs text-[#8B949E] mt-1">Leave empty to auto-generate</p>
+            </div>
             <div>
               <Label className="text-[#C9D1D9]">Title *</Label>
               <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="bg-[#0D1117] border-[#30363D] text-[#C9D1D9] mt-1" />

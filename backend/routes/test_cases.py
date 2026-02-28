@@ -66,6 +66,22 @@ def create_test_case():
 
 
 # ---------------------------------------------------------------------------
+# GET /api/test-cases/next-tc-id -- Next auto TC ID
+# ---------------------------------------------------------------------------
+
+@test_cases_bp.route('/next-tc-id', methods=['GET'])
+@jwt_required
+def next_tc_id():
+    """Return the next auto-generated TC ID for pre-filling the form."""
+    db = SessionLocal()
+    try:
+        tc_id = svc.get_next_tc_id(db)
+        return jsonify({'data': tc_id}), 200
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
 # GET /api/test-cases/export-csv -- Export CSV
 # ---------------------------------------------------------------------------
 

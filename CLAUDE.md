@@ -122,7 +122,7 @@ frontend/
 
 organizations, users, invite_links, api_endpoints, api_check_history, product_tags, test_projects, test_cases, test_case_tags, test_results, api_testcase_links, jira_issue_links, alembic_version
 
-Alembic migration chain: `742584645af3` → `a1b2c3d4e5f6` → `b2c3d4e5f6a7`
+Alembic migration chain: `742584645af3` → `a1b2c3d4e5f6` → `b2c3d4e5f6a7` → `c3d4e5f6a7b8`
 
 ### Frontend Pages
 
@@ -130,7 +130,7 @@ Alembic migration chain: `742584645af3` → `a1b2c3d4e5f6` → `b2c3d4e5f6a7`
 |------|-------|-------------|
 | Dashboard | `/dashboard` | Stats cards, health PieChart, project progress bars |
 | API Monitor | `/api-monitor` | CRUD, Check Now, response time LineChart, uptime % |
-| Test Cases | `/test-cases` | CRUD, filters, CSV import/export, product tags |
+| Test Cases | `/test-cases` | CRUD, custom TC ID, filters, CSV import/export, product tags |
 | Test Projects | `/test-projects` | CRUD, case assignment, per-case results, assignee dropdown, reports |
 | Coverage | `/coverage` | Stats, uncovered APIs, alerts, PieChart |
 | Members | `/members` | Member list, role changes, deactivation, invite links (create/copy/revoke) |

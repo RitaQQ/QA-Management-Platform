@@ -5,6 +5,7 @@ Provides token creation helpers and Flask decorator functions
 for protecting routes with Bearer-token-based authentication.
 """
 import os
+import uuid as _uuid
 from functools import wraps
 from datetime import datetime, timedelta, timezone
 
@@ -90,9 +91,19 @@ def jwt_required(f):
         # Check trial expiration for write operations
         db = SessionLocal()
         try:
-            org = db.query(Organization).filter_by(id=payload['tenant_id']).first()
+            tenant_id = payload['tenant_id']
+            try:
+                tenant_id = _uuid.UUID(tenant_id)
+            except (ValueError, AttributeError):
+                pass
+            org = db.query(Organization).filter_by(id=tenant_id).first()
             if org and org.subscription_status == 'trialing':
-                if org.trial_ends_at and datetime.now(timezone.utc) > org.trial_ends_at:
+                trial_end = org.trial_ends_at
+                if trial_end:
+                    # Ensure timezone-aware comparison (SQLite stores naive datetimes)
+                    if trial_end.tzinfo is None:
+                        trial_end = trial_end.replace(tzinfo=timezone.utc)
+                if trial_end and datetime.now(timezone.utc) > trial_end:
                     org.subscription_status = 'expired'
                     db.commit()
 
@@ -101,7 +112,7 @@ def jwt_required(f):
                     return jsonify({'error': 'Trial expired. Please upgrade to continue.'}), 403
 
             g.user_id = payload['user_id']
-            g.tenant_id = payload['tenant_id']
+            g.tenant_id = tenant_id if isinstance(tenant_id, _uuid.UUID) else payload['tenant_id']
             g.role = payload['role']
         finally:
             db.close()

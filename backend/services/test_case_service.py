@@ -23,16 +23,38 @@ VALID_STATUSES = ('draft', 'ready', 'in_progress', 'completed', 'blocked')
 # ---------------------------------------------------------------------------
 
 def get_next_tc_id(db):
-    """Generate the next TC ID (TC00001 format) for the current tenant."""
-    last = (
-        tenant_filter(db.query(TestCase), TestCase)
-        .order_by(TestCase.id.desc())
-        .first()
+    """Generate the next TC ID (TC00001 format) for the current tenant.
+
+    Only considers existing TC IDs that match the TC##### pattern so that
+    custom IDs (e.g. SC001, LOGIN-01) do not break the auto-increment.
+    """
+    rows = (
+        tenant_filter(db.query(TestCase.tc_id), TestCase)
+        .filter(TestCase.tc_id.like('TC%'))
+        .all()
     )
-    if last and last.tc_id:
-        num = int(last.tc_id.replace('TC', ''))
-        return f"TC{num + 1:05d}"
-    return "TC00001"
+    max_num = 0
+    for (tc_id,) in rows:
+        suffix = tc_id[2:]
+        if suffix.isdigit():
+            max_num = max(max_num, int(suffix))
+    return f"TC{max_num + 1:05d}"
+
+
+def _validate_tc_id_unique(db, tc_id, exclude_id=None):
+    """Check that *tc_id* is unique within the current tenant.
+
+    Returns ``None`` if valid, or an error message string if duplicated.
+    """
+    query = (
+        tenant_filter(db.query(TestCase), TestCase)
+        .filter(TestCase.tc_id == tc_id)
+    )
+    if exclude_id is not None:
+        query = query.filter(TestCase.id != exclude_id)
+    if query.first():
+        return f'TC ID "{tc_id}" already exists'
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +150,8 @@ def create_test_case(db, data):
     """Create a new test case and return ``(case_dict, None)`` or ``(None, error)``.
 
     Required field: ``title``.
+    Optional: ``tc_id`` — if provided and non-empty, uses the user value
+    (after uniqueness check); otherwise auto-generates.
     """
     if not data.get('title'):
         return None, 'title is required'
@@ -140,7 +164,14 @@ def create_test_case(db, data):
     if status not in VALID_STATUSES:
         return None, f'Invalid status: {status}'
 
-    tc_id = get_next_tc_id(db)
+    # TC ID: use user-supplied value or auto-generate
+    tc_id = (data.get('tc_id') or '').strip()
+    if tc_id:
+        err = _validate_tc_id_unique(db, tc_id)
+        if err:
+            return None, err
+    else:
+        tc_id = get_next_tc_id(db)
 
     case = TestCase(
         tc_id=tc_id,
@@ -183,6 +214,15 @@ def update_test_case(db, case_id, data):
     if not case:
         return None, 'Not found'
 
+    if 'tc_id' in data:
+        new_tc_id = (data['tc_id'] or '').strip()
+        if not new_tc_id:
+            return None, 'TC ID cannot be empty'
+        if new_tc_id != case.tc_id:
+            err = _validate_tc_id_unique(db, new_tc_id, exclude_id=case.id)
+            if err:
+                return None, err
+            case.tc_id = new_tc_id
     if 'title' in data:
         case.title = data['title']
     if 'user_role' in data:
@@ -308,8 +348,9 @@ def import_csv(db, csv_content):
             errors.append(f'Row {row_num}: insufficient columns')
             continue
 
-        # Parse columns: TC ID (ignored, auto-generated), title, user_role,
-        # feature_description, acceptance_criteria, priority, status, tags
+        # Parse columns: TC ID (use if provided, else auto-generate), title,
+        # user_role, feature_description, acceptance_criteria, priority, status, tags
+        csv_tc_id = row[0].strip() if len(row) > 0 else ''
         title = row[1].strip() if len(row) > 1 else ''
         if not title:
             errors.append(f'Row {row_num}: title is required')
@@ -328,8 +369,17 @@ def import_csv(db, csv_content):
         if status not in VALID_STATUSES:
             status = 'draft'
 
-        try:
+        # TC ID: use CSV value if provided, otherwise auto-generate
+        if csv_tc_id:
+            dup_err = _validate_tc_id_unique(db, csv_tc_id)
+            if dup_err:
+                errors.append(f'Row {row_num}: {dup_err}')
+                continue
+            tc_id = csv_tc_id
+        else:
             tc_id = get_next_tc_id(db)
+
+        try:
             case = TestCase(
                 tc_id=tc_id,
                 title=title,
@@ -362,6 +412,7 @@ def import_csv(db, csv_content):
 
             created += 1
         except Exception as exc:
+            db.rollback()
             logger.warning('CSV import row %d failed: %s', row_num, exc)
             errors.append(f'Row {row_num}: {str(exc)}')
 
