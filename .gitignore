@@ -1,0 +1,143 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Flask
+instance/
+.webassets-cache
+
+# Logs
+*.log
+logs/
+server.log
+api_monitor.log
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code local settings
+.claude/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+nohup.out
+test_server.py
+
+# Database and data files - 完全排除
+data/
+data/*
+*.db
+*.sqlite
+*.sqlite3
+
+# 確保本地開發資料不被上傳
+logs/
+backups/
+
+# Cookie files
+cookies.txt
+*_cookies.txt
+admin_cookies.txt
+test1_cookies.txt
+
+# Test files (legacy root-level test scripts, NOT the structured test suite)
+/test_*.py
+/*_test.py
+/backend/test_*.py
+/backend/*_test.py
+add_time_fields.py
+create_test_results_table.py
+final_*.py
+# Keep backend/tests/ tracked (structured test suite)
+!backend/tests/
+
+# Test reports and coverage
+test_report_*.txt
+coverage_report_*.json
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Docker
+docker-compose.override.yml
+
+# SSL certificates
+nginx/ssl/*.pem
+nginx/ssl/*.crt
+nginx/ssl/*.key
+
+# Backup files
+backups/
+*.backup
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend
+backend/__pycache__/
+backend/venv/
+
+# Database volumes
+pgdata/
+
+# Screenshots and images (test artifacts)
+*.png
+*.jpeg
+*.jpg
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Keep docs screenshots tracked
+!docs/screenshots/*.png
