@@ -29,9 +29,9 @@ Add API endpoints, run health checks on demand, track response time and uptime h
 
 ### Test Cases 測試案例
 
-Create and manage test cases with TC-format IDs, filter by priority/status/tags, bulk import/export via CSV.
+Create and manage test cases with customizable TC IDs (e.g. AUTH-001, SC-001, PAY-001) or auto-generated sequential IDs. Filter by priority/status/tags, bulk import/export via CSV.
 
-建立與管理測試案例（TC 格式編號），依優先級/狀態/標籤篩選，支援 CSV 批量匯入匯出。
+建立與管理測試案例，支援自定義編號（如 AUTH-001、SC-001、PAY-001）或自動生成流水號。依優先級/狀態/標籤篩選，支援 CSV 批量匯入匯出。
 
 ![Test Cases](docs/screenshots/test-cases.png)
 
@@ -73,7 +73,7 @@ Connect your Jira instance with API Token, create issues from test results, sync
 
 | Feature 功能 | Description 說明 |
 |---|---|
-| **Test Case Management 測試案例管理** | CRUD with TC-format IDs, priority/status filters, CSV import/export, product tags 使用 TC 格式編號的完整 CRUD，優先級/狀態篩選，CSV 匯入匯出，產品標籤 |
+| **Test Case Management 測試案例管理** | CRUD with customizable TC IDs (e.g. AUTH-001, SC-001) or auto-generated sequential IDs, priority/status filters, CSV import/export, product tags 支援自定義編號或自動流水號的完整 CRUD，優先級/狀態篩選，CSV 匯入匯出，產品標籤 |
 | **Test Project Tracking 測試專案追蹤** | Project lifecycle (draft → in progress → completed), case assignment, per-case results, assignee per case 專案生命週期管理，案例分配，逐案結果追蹤，指派測試人員 |
 | **API Health Monitoring API 健康監控** | Scheduled checks, response time tracking, uptime %, on-demand Check Now 定時檢查，回應時間追蹤，上線率，即時手動檢查 |
 | **Coverage Analysis 覆蓋率分析** | API-to-test-case linking, uncovered API detection, coverage alerts API 與測試案例關聯，未覆蓋 API 偵測，覆蓋率告警 |
