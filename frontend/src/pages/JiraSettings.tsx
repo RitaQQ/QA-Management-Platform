@@ -43,9 +43,32 @@ export default function JiraSettings() {
   const [editing, setEditing] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const [titleTemplate, setTitleTemplate] = useState('');
+  const [descTemplate, setDescTemplate] = useState('');
+
   const [notifEmail, setNotifEmail] = useState('');
   const [webhook, setWebhook] = useState('');
   const [notifSaved, setNotifSaved] = useState(false);
+
+  // ----- Bug template query -----
+  const templateQuery = useQuery({
+    queryKey: ['jira-bug-template'],
+    queryFn: () => api.get<ApiResponse<{
+      title_template: string | null;
+      description_template: string | null;
+      default_title: string;
+      default_description: string;
+      available_placeholders: { key: string; label: string; example: string }[];
+    }>>('/jira/bug-template').then(r => r.data.data),
+    enabled: jiraStatus?.connected === true,
+  });
+
+  useEffect(() => {
+    if (templateQuery.data) {
+      setTitleTemplate(templateQuery.data.title_template ?? '');
+      setDescTemplate(templateQuery.data.description_template ?? '');
+    }
+  }, [templateQuery.data]);
 
   useEffect(() => {
     if (notifSettings) {
@@ -98,6 +121,15 @@ export default function JiraSettings() {
       setApiToken('');
       setTestResult(null);
       setEditing(false);
+    },
+  });
+
+  // ----- Bug template mutation -----
+  const saveTemplateMut = useMutation({
+    mutationFn: (data: { title_template: string; description_template: string }) =>
+      api.put('/jira/bug-template', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jira-bug-template'] });
     },
   });
 
@@ -322,6 +354,68 @@ export default function JiraSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* ===================== Bug Template ===================== */}
+      {jiraStatus?.connected && (
+        <Card className="bg-[#161B22] border-[#30363D]">
+          <CardHeader>
+            <CardTitle className="text-[#C9D1D9] text-lg">Bug Template</CardTitle>
+            <p className="text-xs text-[#484F58]">
+              Customize the title and description when creating Jira bugs from test results. Leave empty to use defaults.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Available placeholders */}
+            <div className="flex flex-wrap gap-1.5">
+              {(templateQuery.data?.available_placeholders ?? []).map(p => (
+                <code
+                  key={p.key}
+                  className="px-1.5 py-0.5 bg-[#0D1117] border border-[#30363D] rounded text-xs text-[#58A6FF] cursor-pointer hover:border-[#58A6FF] transition-colors"
+                  title={`${p.label} — e.g. ${p.example}`}
+                  onClick={() => navigator.clipboard.writeText(`{${p.key}}`)}
+                >
+                  {`{${p.key}}`}
+                </code>
+              ))}
+              <span className="text-xs text-[#484F58] self-center ml-1">Click to copy</span>
+            </div>
+
+            {/* Title template */}
+            <div>
+              <Label className="text-[#C9D1D9]">Title Template</Label>
+              <Input
+                value={titleTemplate}
+                onChange={e => setTitleTemplate(e.target.value)}
+                placeholder={templateQuery.data?.default_title || '[{tc_id}] {title} - Test Failed'}
+                className="bg-[#0D1117] border-[#30363D] text-[#C9D1D9] mt-1 font-mono text-sm"
+              />
+            </div>
+
+            {/* Description template */}
+            <div>
+              <Label className="text-[#C9D1D9]">Description Template</Label>
+              <textarea
+                value={descTemplate}
+                onChange={e => setDescTemplate(e.target.value)}
+                placeholder={templateQuery.data?.default_description || 'Test Case: {tc_id} - {title}\nUser Role: {user_role}\n...'}
+                rows={8}
+                className="flex w-full rounded-md bg-[#0D1117] border border-[#30363D] text-[#C9D1D9] mt-1 font-mono text-sm px-3 py-2 placeholder:text-[#484F58] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#58A6FF] resize-y"
+              />
+            </div>
+
+            <Button
+              onClick={() => saveTemplateMut.mutate({
+                title_template: titleTemplate,
+                description_template: descTemplate,
+              })}
+              disabled={saveTemplateMut.isPending}
+              className="bg-[#238636] hover:bg-[#2ea043]"
+            >
+              {saveTemplateMut.isPending ? 'Saving...' : 'Save Template'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ===================== Notifications ===================== */}
       <Card className="border-[#30363D] bg-[#0D1117]">
