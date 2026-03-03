@@ -4,11 +4,13 @@ Jira integration routes -- API Token connection, issue management, and webhook h
 All endpoints except the webhook require JWT authentication.
 The webhook endpoint is unauthenticated because Jira calls it externally.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 
 from middleware.auth import jwt_required
+from database.models import Organization
 from database.session import SessionLocal
 from services import jira_service as svc
+from services.jira_service import DEFAULT_BUG_TITLE_TEMPLATE, DEFAULT_BUG_DESCRIPTION_TEMPLATE
 
 jira_bp = Blueprint('jira', __name__, url_prefix='/api/jira')
 
@@ -226,5 +228,70 @@ def project_links(project_id):
         if error:
             return jsonify({'error': error}), 404 if error == 'Project not found' else 400
         return jsonify({'data': result}), 200
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/jira/bug-template -- Return bug title/description templates
+# ---------------------------------------------------------------------------
+
+@jira_bp.route('/bug-template', methods=['GET'])
+@jwt_required
+def get_bug_template():
+    """Return the org's Jira bug title/description templates and available placeholders."""
+    db = SessionLocal()
+    try:
+        org = db.query(Organization).filter_by(id=g.tenant_id).first()
+        return jsonify({'data': {
+            'title_template': org.jira_bug_title_template if org else None,
+            'description_template': org.jira_bug_description_template if org else None,
+            'available_placeholders': [
+                {'key': 'tc_id', 'label': 'TC ID', 'example': 'AUTH-001'},
+                {'key': 'title', 'label': 'Test Case Title', 'example': 'Login Feature Test'},
+                {'key': 'user_role', 'label': 'User Role', 'example': 'Admin'},
+                {'key': 'feature_description', 'label': 'Feature Description', 'example': 'User authentication'},
+                {'key': 'acceptance_criteria', 'label': 'Acceptance Criteria', 'example': 'Should login successfully'},
+                {'key': 'test_notes', 'label': 'Test Notes', 'example': 'Field not accepting input'},
+                {'key': 'known_issues', 'label': 'Known Issues', 'example': 'DB timeout'},
+                {'key': 'status', 'label': 'Test Result Status', 'example': 'fail'},
+                {'key': 'project_key', 'label': 'Jira Project Key', 'example': 'PROJ'},
+            ],
+            'default_title': DEFAULT_BUG_TITLE_TEMPLATE,
+            'default_description': DEFAULT_BUG_DESCRIPTION_TEMPLATE,
+        }}), 200
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/jira/bug-template -- Save bug title/description templates
+# ---------------------------------------------------------------------------
+
+@jira_bp.route('/bug-template', methods=['PUT'])
+@jwt_required
+def update_bug_template():
+    """Save the org's Jira bug title/description templates."""
+    body = request.get_json()
+    if not body:
+        return jsonify({'error': 'Request body required'}), 400
+
+    db = SessionLocal()
+    try:
+        org = db.query(Organization).filter_by(id=g.tenant_id).first()
+        if not org:
+            return jsonify({'error': 'Organization not found'}), 404
+
+        title = (body.get('title_template') or '').strip() or None
+        description = (body.get('description_template') or '').strip() or None
+
+        org.jira_bug_title_template = title
+        org.jira_bug_description_template = description
+        db.commit()
+
+        return jsonify({'data': {
+            'title_template': org.jira_bug_title_template,
+            'description_template': org.jira_bug_description_template,
+        }}), 200
     finally:
         db.close()

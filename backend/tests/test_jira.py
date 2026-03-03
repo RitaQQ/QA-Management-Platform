@@ -20,6 +20,7 @@ from database.models import (
 )
 from database.session import SessionLocal
 from services.user_service import hash_password
+from services.jira_service import DEFAULT_BUG_TITLE_TEMPLATE, DEFAULT_BUG_DESCRIPTION_TEMPLATE
 from middleware.auth import create_access_token
 
 
@@ -1143,3 +1144,104 @@ class TestTemplateRendering:
                 db.commit()
             finally:
                 db.close()
+
+
+# ---------------------------------------------------------------------------
+# Bug Template API -- GET / PUT /api/jira/bug-template
+# ---------------------------------------------------------------------------
+
+class TestBugTemplateApi:
+    """Tests for the GET/PUT /api/jira/bug-template endpoints."""
+
+    def test_get_template_returns_defaults_when_empty(self, client, tenant_data):
+        """GET returns None templates + available_placeholders + defaults when
+        the org has no custom templates set."""
+        # Ensure templates are cleared
+        db = SessionLocal()
+        try:
+            org = db.query(Organization).filter_by(
+                id=uuid.UUID(tenant_data['org_a_id']),
+            ).first()
+            org.jira_bug_title_template = None
+            org.jira_bug_description_template = None
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.get(
+            '/api/jira/bug-template',
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert resp.status_code == 200
+
+        data = resp.get_json()['data']
+        assert data['title_template'] is None
+        assert data['description_template'] is None
+        assert isinstance(data['available_placeholders'], list)
+        assert len(data['available_placeholders']) == 9
+        assert data['default_title'] == DEFAULT_BUG_TITLE_TEMPLATE
+        assert data['default_description'] == DEFAULT_BUG_DESCRIPTION_TEMPLATE
+
+    def test_put_template_saves_and_get_returns_it(self, client, tenant_data):
+        """PUT saves custom templates, GET returns them."""
+        custom_title = '[BUG] {tc_id}: {title}'
+        custom_desc = 'Role: {user_role}\nNotes: {test_notes}'
+
+        put_resp = client.put(
+            '/api/jira/bug-template',
+            json={
+                'title_template': custom_title,
+                'description_template': custom_desc,
+            },
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert put_resp.status_code == 200
+        put_data = put_resp.get_json()['data']
+        assert put_data['title_template'] == custom_title
+        assert put_data['description_template'] == custom_desc
+
+        # GET should reflect the saved values
+        get_resp = client.get(
+            '/api/jira/bug-template',
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert get_resp.status_code == 200
+        get_data = get_resp.get_json()['data']
+        assert get_data['title_template'] == custom_title
+        assert get_data['description_template'] == custom_desc
+
+    def test_put_template_clears_with_empty_string(self, client, tenant_data):
+        """PUT with empty strings resets templates to None (fallback to defaults)."""
+        # First set custom templates
+        client.put(
+            '/api/jira/bug-template',
+            json={
+                'title_template': 'some title',
+                'description_template': 'some desc',
+            },
+            headers=_auth(tenant_data['token_a']),
+        )
+
+        # Now clear them with empty strings
+        put_resp = client.put(
+            '/api/jira/bug-template',
+            json={
+                'title_template': '',
+                'description_template': '   ',
+            },
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert put_resp.status_code == 200
+        put_data = put_resp.get_json()['data']
+        assert put_data['title_template'] is None
+        assert put_data['description_template'] is None
+
+        # GET should confirm None
+        get_resp = client.get(
+            '/api/jira/bug-template',
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert get_resp.status_code == 200
+        get_data = get_resp.get_json()['data']
+        assert get_data['title_template'] is None
+        assert get_data['description_template'] is None
