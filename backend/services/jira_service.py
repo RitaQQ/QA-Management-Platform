@@ -12,6 +12,7 @@ All tenant-scoped operations use ``get_tenant_id()`` from :mod:`middleware.tenan
 """
 import base64
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 
 import requests
@@ -259,25 +260,46 @@ def create_issue_from_test_result(db, test_result_id, project_key, issue_type='B
     if not case:
         return None, 'Test case not found'
 
-    # Build a human-readable description
-    desc_parts = [f"Test Case: {case.tc_id} - {case.title}"]
-    if case.user_role:
-        desc_parts.append(f"User Role: {case.user_role}")
-    if case.feature_description:
-        desc_parts.append(f"Feature: {case.feature_description}")
-    if case.acceptance_criteria:
-        desc_parts.append(f"Acceptance Criteria: {case.acceptance_criteria}")
-    if result.notes:
-        desc_parts.append(f"\nTest Notes: {result.notes}")
-    if result.known_issues:
-        desc_parts.append(f"Known Issues: {result.known_issues}")
-    description_text = '\n'.join(desc_parts)
+    # --- Fetch org templates ---
+    org = db.query(Organization).filter_by(id=get_tenant_id()).first()
+
+    # Build placeholder values (missing fields default to empty string)
+    placeholders = {
+        'tc_id': case.tc_id or '',
+        'title': case.title or '',
+        'user_role': case.user_role or '',
+        'feature_description': case.feature_description or '',
+        'acceptance_criteria': case.acceptance_criteria or '',
+        'test_notes': result.notes or '',
+        'known_issues': result.known_issues or '',
+        'status': result.status or '',
+        'project_key': project_key,
+    }
+
+    # Render summary from template (fallback to default)
+    DEFAULT_TITLE = '[{tc_id}] {title} - Test Failed'
+    DEFAULT_DESCRIPTION = (
+        'Test Case: {tc_id} - {title}\n'
+        'User Role: {user_role}\n'
+        'Feature: {feature_description}\n'
+        'Acceptance Criteria: {acceptance_criteria}\n'
+        '\nTest Notes: {test_notes}\n'
+        'Known Issues: {known_issues}'
+    )
+
+    title_template = (org.jira_bug_title_template if org else None) or DEFAULT_TITLE
+    desc_template = (org.jira_bug_description_template if org else None) or DEFAULT_DESCRIPTION
+
+    # Use defaultdict to handle unknown placeholders gracefully
+    safe_placeholders = defaultdict(str, placeholders)
+    summary_text = title_template.format_map(safe_placeholders)
+    description_text = desc_template.format_map(safe_placeholders)
 
     # Jira REST API v3 uses Atlassian Document Format for description
     payload = {
         'fields': {
             'project': {'key': project_key},
-            'summary': f"[{case.tc_id}] {case.title} - Test Failed",
+            'summary': summary_text,
             'description': {
                 'type': 'doc',
                 'version': 1,
@@ -301,7 +323,7 @@ def create_issue_from_test_result(db, test_result_id, project_key, issue_type='B
         test_case_id=case.id,
         test_result_id=result.id,
         jira_issue_key=issue_data['key'],
-        jira_issue_summary=f"[{case.tc_id}] {case.title} - Test Failed",
+        jira_issue_summary=summary_text,
         jira_status='Open',
         last_synced_at=datetime.now(timezone.utc),
     )
@@ -309,7 +331,6 @@ def create_issue_from_test_result(db, test_result_id, project_key, issue_type='B
     db.add(link)
     db.commit()
 
-    org = db.query(Organization).filter_by(id=get_tenant_id()).first()
     return {
         'jira_issue_key': issue_data['key'],
         'jira_issue_url': f"{org.jira_site_url}/browse/{issue_data['key']}",

@@ -7,6 +7,7 @@ connection status, and tenant isolation.
 
 ALL external Jira HTTP calls are mocked -- no real Jira access is required.
 """
+import uuid
 import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
@@ -236,7 +237,7 @@ class TestConnectWithToken:
         # Verify saved in DB
         db = SessionLocal()
         try:
-            org = db.query(Organization).filter_by(id=tenant_data['org_a_id']).first()
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
             assert org.jira_site_url == 'https://new-site.atlassian.net'
             assert org.jira_user_email == 'new@example.com'
             assert org.jira_api_token == 'new-token-123'
@@ -279,7 +280,7 @@ class TestConnectWithToken:
         # Restore
         db = SessionLocal()
         try:
-            org = db.query(Organization).filter_by(id=tenant_data['org_a_id']).first()
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
             org.jira_site_url = 'https://orgA.atlassian.net'
             org.jira_user_email = 'admin@orgA.com'
             org.jira_api_token = 'fake-api-token-a'
@@ -348,7 +349,7 @@ class TestDisconnect:
         # Restore for other tests
         db = SessionLocal()
         try:
-            org = db.query(Organization).filter_by(id=tenant_data['org_a_id']).first()
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
             org.jira_site_url = 'https://orgA.atlassian.net'
             org.jira_user_email = 'admin@orgA.com'
             org.jira_api_token = 'fake-api-token-a'
@@ -428,7 +429,7 @@ class TestCreateIssueJiraNotConnected:
         # Temporarily remove the Jira credentials
         db = SessionLocal()
         try:
-            org = db.query(Organization).filter_by(id=tenant_data['org_a_id']).first()
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
             original_token = org.jira_api_token
             original_email = org.jira_user_email
             org.jira_api_token = None
@@ -452,7 +453,7 @@ class TestCreateIssueJiraNotConnected:
             # Restore credentials
             db = SessionLocal()
             try:
-                org = db.query(Organization).filter_by(id=tenant_data['org_a_id']).first()
+                org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
                 org.jira_api_token = original_token
                 org.jira_user_email = original_email
                 db.commit()
@@ -472,7 +473,7 @@ class TestWebhookUpdatesStatus:
         db = SessionLocal()
         try:
             link = JiraIssueLink(
-                tenant_id=tenant_data['org_a_id'],
+                tenant_id=uuid.UUID(tenant_data['org_a_id']),
                 test_case_id=tenant_data['case_a_id'],
                 test_result_id=tenant_data['result_a_id'],
                 jira_issue_key='PROJ-100',
@@ -582,7 +583,7 @@ class TestSyncIssueStatus:
         db = SessionLocal()
         try:
             link = JiraIssueLink(
-                tenant_id=tenant_data['org_a_id'],
+                tenant_id=uuid.UUID(tenant_data['org_a_id']),
                 test_case_id=tenant_data['case_a_id'],
                 test_result_id=tenant_data['result_a_id'],
                 jira_issue_key='PROJ-200',
@@ -643,7 +644,7 @@ class TestGetProjectLinks:
         db = SessionLocal()
         try:
             link1 = JiraIssueLink(
-                tenant_id=tenant_data['org_a_id'],
+                tenant_id=uuid.UUID(tenant_data['org_a_id']),
                 test_case_id=tenant_data['case_a_id'],
                 test_result_id=tenant_data['result_a_id'],
                 jira_issue_key='PROJ-301',
@@ -654,7 +655,7 @@ class TestGetProjectLinks:
                 last_synced_at=datetime.now(timezone.utc),
             )
             link2 = JiraIssueLink(
-                tenant_id=tenant_data['org_a_id'],
+                tenant_id=uuid.UUID(tenant_data['org_a_id']),
                 test_case_id=tenant_data['case_a_id'],
                 test_result_id=tenant_data['result_a_id'],
                 jira_issue_key='PROJ-302',
@@ -731,7 +732,7 @@ class TestConnectionStatus:
         # Temporarily remove credentials
         db = SessionLocal()
         try:
-            org = db.query(Organization).filter_by(id=tenant_data['org_a_id']).first()
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
             original_token = org.jira_api_token
             original_email = org.jira_user_email
             org.jira_api_token = None
@@ -751,7 +752,7 @@ class TestConnectionStatus:
             # Restore credentials
             db = SessionLocal()
             try:
-                org = db.query(Organization).filter_by(id=tenant_data['org_a_id']).first()
+                org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
                 org.jira_api_token = original_token
                 org.jira_user_email = original_email
                 db.commit()
@@ -771,7 +772,7 @@ class TestTenantIsolation:
         db = SessionLocal()
         try:
             link = JiraIssueLink(
-                tenant_id=tenant_data['org_a_id'],
+                tenant_id=uuid.UUID(tenant_data['org_a_id']),
                 test_case_id=tenant_data['case_a_id'],
                 test_result_id=tenant_data['result_a_id'],
                 jira_issue_key='PROJ-400',
@@ -799,7 +800,7 @@ class TestTenantIsolation:
         db = SessionLocal()
         try:
             link = JiraIssueLink(
-                tenant_id=tenant_data['org_a_id'],
+                tenant_id=uuid.UUID(tenant_data['org_a_id']),
                 test_case_id=tenant_data['case_a_id'],
                 test_result_id=tenant_data['result_a_id'],
                 jira_issue_key='PROJ-500',
@@ -918,3 +919,185 @@ class TestEdgeCases:
             content_type='text/plain',
         )
         assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# 12. Template rendering for Jira issue creation
+# ---------------------------------------------------------------------------
+
+class TestTemplateRendering:
+    """Verify that org-level Jira bug templates are rendered correctly."""
+
+    @patch('services.jira_service.requests.post')
+    def test_custom_title_template(self, mock_post, client, tenant_data):
+        """When org has a custom title template, the Jira issue summary uses it."""
+        mock_post.return_value = MagicMock(
+            status_code=201,
+            json=lambda: {'key': 'TMPL-1', 'id': '20001'},
+        )
+
+        # Set custom title template on org
+        db = SessionLocal()
+        try:
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+            org.jira_bug_title_template = 'BUG: {title} ({tc_id})'
+            db.commit()
+        finally:
+            db.close()
+
+        try:
+            resp = client.post(
+                '/api/jira/create-issue',
+                json={
+                    'test_result_id': tenant_data['result_a_id'],
+                    'project_key': 'TMPL',
+                    'issue_type': 'Bug',
+                },
+                headers=_auth(tenant_data['token_a']),
+            )
+            assert resp.status_code == 201
+
+            # Verify the summary sent to Jira uses the custom template
+            call_args = mock_post.call_args
+            payload = call_args[1]['json']
+            assert payload['fields']['summary'] == 'BUG: Login Feature Test (TC00001)'
+        finally:
+            # Reset template
+            db = SessionLocal()
+            try:
+                org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+                org.jira_bug_title_template = None
+                db.commit()
+            finally:
+                db.close()
+
+    @patch('services.jira_service.requests.post')
+    def test_custom_description_template(self, mock_post, client, tenant_data):
+        """When org has a custom description template, the Jira issue body uses it."""
+        mock_post.return_value = MagicMock(
+            status_code=201,
+            json=lambda: {'key': 'TMPL-2', 'id': '20002'},
+        )
+
+        # Set custom description template on org
+        db = SessionLocal()
+        try:
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+            org.jira_bug_description_template = (
+                'ID: {tc_id}\nName: {title}\nNotes: {test_notes}'
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        try:
+            resp = client.post(
+                '/api/jira/create-issue',
+                json={
+                    'test_result_id': tenant_data['result_a_id'],
+                    'project_key': 'TMPL',
+                    'issue_type': 'Bug',
+                },
+                headers=_auth(tenant_data['token_a']),
+            )
+            assert resp.status_code == 201
+
+            call_args = mock_post.call_args
+            payload = call_args[1]['json']
+            desc_text = payload['fields']['description']['content'][0]['content'][0]['text']
+            assert desc_text == 'ID: TC00001\nName: Login Feature Test\nNotes: Login button not working'
+        finally:
+            # Reset template
+            db = SessionLocal()
+            try:
+                org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+                org.jira_bug_description_template = None
+                db.commit()
+            finally:
+                db.close()
+
+    @patch('services.jira_service.requests.post')
+    def test_default_fallback_when_no_template(self, mock_post, client, tenant_data):
+        """When no template is set, falls back to default format."""
+        mock_post.return_value = MagicMock(
+            status_code=201,
+            json=lambda: {'key': 'TMPL-3', 'id': '20003'},
+        )
+
+        # Ensure no templates are set
+        db = SessionLocal()
+        try:
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+            org.jira_bug_title_template = None
+            org.jira_bug_description_template = None
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.post(
+            '/api/jira/create-issue',
+            json={
+                'test_result_id': tenant_data['result_a_id'],
+                'project_key': 'TMPL',
+                'issue_type': 'Bug',
+            },
+            headers=_auth(tenant_data['token_a']),
+        )
+        assert resp.status_code == 201
+
+        call_args = mock_post.call_args
+        payload = call_args[1]['json']
+
+        # Default title format
+        assert payload['fields']['summary'] == '[TC00001] Login Feature Test - Test Failed'
+
+        # Default description contains key parts
+        desc_text = payload['fields']['description']['content'][0]['content'][0]['text']
+        assert 'Test Case: TC00001 - Login Feature Test' in desc_text
+        assert 'User Role: Admin' in desc_text
+        assert 'Feature: User login with OAuth' in desc_text
+        assert 'Test Notes: Login button not working' in desc_text
+        assert 'Known Issues: Button CSS broken' in desc_text
+
+    @patch('services.jira_service.requests.post')
+    def test_unknown_placeholder_does_not_crash(self, mock_post, client, tenant_data):
+        """Unknown placeholders like {typo} become empty string instead of crashing."""
+        mock_post.return_value = MagicMock(
+            status_code=201,
+            json=lambda: {'key': 'TMPL-4', 'id': '20004'},
+        )
+
+        # Set a template with an unknown placeholder
+        db = SessionLocal()
+        try:
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+            org.jira_bug_title_template = '{tc_id} - {typo} - {title}'
+            db.commit()
+        finally:
+            db.close()
+
+        try:
+            resp = client.post(
+                '/api/jira/create-issue',
+                json={
+                    'test_result_id': tenant_data['result_a_id'],
+                    'project_key': 'TMPL',
+                    'issue_type': 'Bug',
+                },
+                headers=_auth(tenant_data['token_a']),
+            )
+            assert resp.status_code == 201
+
+            call_args = mock_post.call_args
+            payload = call_args[1]['json']
+            # {typo} should resolve to empty string
+            assert payload['fields']['summary'] == 'TC00001 -  - Login Feature Test'
+        finally:
+            # Reset template
+            db = SessionLocal()
+            try:
+                org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+                org.jira_bug_title_template = None
+                db.commit()
+            finally:
+                db.close()
