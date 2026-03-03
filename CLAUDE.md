@@ -134,7 +134,7 @@ Alembic migration chain: `742584645af3` → `a1b2c3d4e5f6` → `b2c3d4e5f6a7` �
 | Test Projects | `/test-projects` | CRUD, case assignment, per-case results, assignee dropdown, reports |
 | Coverage | `/coverage` | Stats, uncovered APIs, alerts, PieChart |
 | Members | `/members` | Member list, role changes, deactivation, invite links (create/copy/revoke) |
-| Jira Settings | `/jira` | API Token auth (connect/test/disconnect), project list |
+| Jira Settings | `/jira` | API Token auth (connect/test/disconnect), project list, bug template config |
 | Join | `/join?token=xxx` | Public invite page |
 
 ## Color Scheme (GitHub dark theme)

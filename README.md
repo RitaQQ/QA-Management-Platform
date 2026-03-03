@@ -61,9 +61,9 @@ Invite team members via shareable links, manage roles (admin/user), deactivate a
 
 ### Jira Integration Jira 串接
 
-Connect your Jira instance with API Token, create issues from test results, sync status bidirectionally.
+Connect your Jira instance with API Token, create issues from test results with customizable bug templates, sync status bidirectionally.
 
-使用 API Token 連接 Jira，從測試結果建立 Issue，雙向同步狀態。
+使用 API Token 連接 Jira，從測試結果建立 Issue（支援自定義 Bug 模板），雙向同步狀態。
 
 ![Jira Settings](docs/screenshots/jira-settings.png)
 
@@ -78,7 +78,7 @@ Connect your Jira instance with API Token, create issues from test results, sync
 | **API Health Monitoring API 健康監控** | Scheduled checks, response time tracking, uptime %, on-demand Check Now 定時檢查，回應時間追蹤，上線率，即時手動檢查 |
 | **Coverage Analysis 覆蓋率分析** | API-to-test-case linking, uncovered API detection, coverage alerts API 與測試案例關聯，未覆蓋 API 偵測，覆蓋率告警 |
 | **Member Invitation 成員邀請** | Admin creates invite links, new members join via URL, role management 管理員建立邀請連結，新成員透過 URL 加入，角色管理 |
-| **Jira Integration Jira 串接** | API Token auth, issue creation from test results, bidirectional sync API Token 認證，從測試結果建立 Issue，雙向同步 |
+| **Jira Integration Jira 串接** | API Token auth, issue creation from test results with customizable bug templates, bidirectional sync API Token 認證，從測試結果建立 Issue（支援自定義 Bug 模板），雙向同步 |
 | **Multi-Tenant 多租戶** | Organization isolation, 14-day free trial, JWT authentication 組織隔離，14 天免費試用，JWT 認證 |
 
 ---
