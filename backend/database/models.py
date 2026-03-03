@@ -44,6 +44,8 @@ class Organization(Base):
     jira_cloud_id = Column(String(255))
     jira_user_email = Column(String(255))
     jira_api_token = Column(Text)
+    jira_bug_title_template = Column(Text)       # e.g. "[{tc_id}] {title} - Test Failed"
+    jira_bug_description_template = Column(Text)  # multi-line template with placeholders
 
     # Payment (Phase 2)
     payment_provider = Column(String(50))
