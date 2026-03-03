@@ -22,6 +22,18 @@ from middleware.tenant import tenant_filter, set_tenant_fields, get_tenant_id
 
 logger = logging.getLogger(__name__)
 
+# Default templates used when the org has no custom template or when
+# a custom template fails to render (e.g. unclosed braces).
+DEFAULT_BUG_TITLE_TEMPLATE = '[{tc_id}] {title} - Test Failed'
+DEFAULT_BUG_DESCRIPTION_TEMPLATE = (
+    'Test Case: {tc_id} - {title}\n'
+    'User Role: {user_role}\n'
+    'Feature: {feature_description}\n'
+    'Acceptance Criteria: {acceptance_criteria}\n'
+    '\nTest Notes: {test_notes}\n'
+    'Known Issues: {known_issues}'
+)
+
 
 # ---------------------------------------------------------------------------
 # API Token connection management
@@ -277,23 +289,21 @@ def create_issue_from_test_result(db, test_result_id, project_key, issue_type='B
     }
 
     # Render summary from template (fallback to default)
-    DEFAULT_TITLE = '[{tc_id}] {title} - Test Failed'
-    DEFAULT_DESCRIPTION = (
-        'Test Case: {tc_id} - {title}\n'
-        'User Role: {user_role}\n'
-        'Feature: {feature_description}\n'
-        'Acceptance Criteria: {acceptance_criteria}\n'
-        '\nTest Notes: {test_notes}\n'
-        'Known Issues: {known_issues}'
-    )
-
-    title_template = (org.jira_bug_title_template if org else None) or DEFAULT_TITLE
-    desc_template = (org.jira_bug_description_template if org else None) or DEFAULT_DESCRIPTION
+    title_template = (org.jira_bug_title_template if org else None) or DEFAULT_BUG_TITLE_TEMPLATE
+    desc_template = (org.jira_bug_description_template if org else None) or DEFAULT_BUG_DESCRIPTION_TEMPLATE
 
     # Use defaultdict to handle unknown placeholders gracefully
     safe_placeholders = defaultdict(str, placeholders)
-    summary_text = title_template.format_map(safe_placeholders)
-    description_text = desc_template.format_map(safe_placeholders)
+    try:
+        summary_text = title_template.format_map(safe_placeholders)
+    except (ValueError, KeyError, IndexError):
+        logger.warning('Title template rendering failed, using default')
+        summary_text = DEFAULT_BUG_TITLE_TEMPLATE.format_map(safe_placeholders)
+    try:
+        description_text = desc_template.format_map(safe_placeholders)
+    except (ValueError, KeyError, IndexError):
+        logger.warning('Description template rendering failed, using default')
+        description_text = DEFAULT_BUG_DESCRIPTION_TEMPLATE.format_map(safe_placeholders)
 
     # Jira REST API v3 uses Atlassian Document Format for description
     payload = {

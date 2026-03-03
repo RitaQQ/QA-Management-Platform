@@ -1060,6 +1060,48 @@ class TestTemplateRendering:
         assert 'Known Issues: Button CSS broken' in desc_text
 
     @patch('services.jira_service.requests.post')
+    def test_broken_template_falls_back_to_default(self, mock_post, client, tenant_data):
+        """Template with unclosed brace falls back to default without crashing."""
+        mock_post.return_value = MagicMock(
+            status_code=201,
+            json=lambda: {'key': 'PROJ-555', 'id': '55555'},
+        )
+
+        # Set a broken title template on org
+        db = SessionLocal()
+        try:
+            org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+            org.jira_bug_title_template = '{tc_id} - {broken'
+            org.jira_site_url = 'https://test.atlassian.net'
+            org.jira_user_email = 'test@example.com'
+            org.jira_api_token = 'test-token'
+            db.commit()
+        finally:
+            db.close()
+
+        try:
+            resp = client.post('/api/jira/create-issue', json={
+                'test_result_id': tenant_data['result_a_id'],
+                'project_key': 'PROJ',
+            }, headers={'Authorization': f"Bearer {tenant_data['token_a']}"})
+
+            assert resp.status_code == 201
+            sent = mock_post.call_args[1]['json']
+            # Should fall back to default title format
+            assert '- Test Failed' in sent['fields']['summary']
+        finally:
+            db = SessionLocal()
+            try:
+                org = db.query(Organization).filter_by(id=uuid.UUID(tenant_data['org_a_id'])).first()
+                org.jira_bug_title_template = None
+                org.jira_site_url = 'https://orgA.atlassian.net'
+                org.jira_user_email = 'admin@orgA.com'
+                org.jira_api_token = 'fake-api-token-a'
+                db.commit()
+            finally:
+                db.close()
+
+    @patch('services.jira_service.requests.post')
     def test_unknown_placeholder_does_not_crash(self, mock_post, client, tenant_data):
         """Unknown placeholders like {typo} become empty string instead of crashing."""
         mock_post.return_value = MagicMock(
